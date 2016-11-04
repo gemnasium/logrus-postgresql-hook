@@ -4,7 +4,5 @@ go:
   - tip
 services:
   - postgresql
-addons:
-    postgresql: "9.5"
 before_script:
   - psql -U postgres < migrations/create_table_logs.sql
