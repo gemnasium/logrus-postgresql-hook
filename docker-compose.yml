@@ -1,0 +1,12 @@
+version: '2'
+services:
+  test:
+    image: golang
+    working_dir: /go/src/github.com/gemnasium/logrus-postgresql-hook
+    volumes:
+      - $GOPATH:/go
+    command: sh -c 'go get -t -v ./... && go test -v ./...'
+    links:
+      - postgres
+  postgres:
+    build: .
