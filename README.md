@@ -60,7 +60,7 @@ func main() {
 ### Customize insertion
 
 By defaults, the hook will log into a `logs` table (cf the test schema in `migrations`).
-To change this behavior, set the `InsertFunc` before creating the hook:
+To change this behavior, set the `InsertFunc` of the hook:
 
 ```go
 package main
@@ -77,7 +77,8 @@ func main() {
       }
     defer db.Close()
 
-    pglogrus.InsertFunc = func(db *sqlDB, entry *logrus.Entry) error {
+    hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
+    hook.InsertFunc = func(db *sqlDB, entry *logrus.Entry) error {
       jsonData, err := json.Marshal(entry.Data)
         if err != nil {
           return err
@@ -86,7 +87,6 @@ func main() {
       _, err = db.Exec("INSERT INTO another_logs_table(level, message, message_data, created_at) VALUES ($1,$2,$3,$4);", entry.Level, entry.Message, jsonData, entry.Time)
         return err
     }
-    hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
     log.Hooks.Add(hook)
     log.Info("some logging message")
 }

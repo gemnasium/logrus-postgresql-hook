@@ -43,7 +43,7 @@ func NewHook(db *sql.DB, extra map[string]interface{}) *Hook {
 	return &Hook{
 		Extra:      extra,
 		db:         db,
-		insertFunc: InsertFunc,
+		InsertFunc: insertFunc,
 		blacklist:  make(map[string]bool),
 	}
 }
@@ -62,7 +62,7 @@ func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 
 func (hook *Hook) Fire(entry *logrus.Entry) error {
 	newEntry := hook.newEntry(entry)
-	return hook.insertFunc(hook.db, newEntry)
+	return hook.InsertFunc(hook.db, newEntry)
 
 }
 
@@ -145,7 +145,7 @@ func (hook *AsyncHook) Flush() {
 func (hook *AsyncHook) fire() {
 	for {
 		entry := <-hook.buf // receive new entry on channel
-		hook.insertFunc(hook.db, entry)
+		hook.InsertFunc(hook.db, entry)
 		hook.wg.Done()
 	}
 }
