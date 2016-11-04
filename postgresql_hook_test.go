@@ -25,7 +25,10 @@ func TestHooks(t *testing.T) {
 	}
 	defer db.Close()
 
-	hooks := map[string]*Hook{
+	hooks := map[string]interface {
+		logrus.Hook
+		Blacklist([]string)
+	}{
 		"Hook":       NewAsyncHook(db, map[string]interface{}{}),
 		"Async Hook": NewHook(db, map[string]interface{}{}),
 	}
@@ -89,7 +92,9 @@ func TestHooks(t *testing.T) {
 			}
 			wg.Wait()
 
-			hook.Flush()
+			if h, ok := hook.(*AsyncHook); ok {
+				h.Flush()
+			}
 
 			// Check results in DB
 			var (

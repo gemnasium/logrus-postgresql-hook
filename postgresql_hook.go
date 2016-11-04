@@ -13,6 +13,21 @@ import (
 // be available in the queue.
 var BufSize uint = 8192
 
+// Hook to send logs to a PostgreSQL database
+type Hook struct {
+	Extra      map[string]interface{}
+	db         *sql.DB
+	mu         sync.RWMutex
+	blacklist  map[string]bool
+	insertFunc func(*sql.DB, *logrus.Entry) error
+}
+
+type AsyncHook struct {
+	*Hook
+	buf chan *logrus.Entry
+	wg  sync.WaitGroup
+}
+
 var InsertFunc = func(db *sql.DB, entry *logrus.Entry) error {
 	jsonData, err := json.Marshal(entry.Data)
 	if err != nil {
@@ -23,44 +38,46 @@ var InsertFunc = func(db *sql.DB, entry *logrus.Entry) error {
 	return err
 }
 
-// Hook to send logs to a PostgreSQL database
-type Hook struct {
-	Extra       map[string]interface{}
-	db          *sql.DB
-	buf         chan *logrus.Entry
-	wg          sync.WaitGroup
-	mu          sync.RWMutex
-	synchronous bool
-	blacklist   map[string]bool
-	insertFunc  func(*sql.DB, *logrus.Entry) error
-}
-
 // NewHook creates a PGHook to be added to an instance of logger.
 func NewHook(db *sql.DB, extra map[string]interface{}) *Hook {
 	return &Hook{
-		Extra:       extra,
-		db:          db,
-		buf:         make(chan *logrus.Entry, BufSize),
-		synchronous: true,
-		insertFunc:  InsertFunc,
-		blacklist:   make(map[string]bool),
+		Extra:      extra,
+		db:         db,
+		insertFunc: InsertFunc,
+		blacklist:  make(map[string]bool),
 	}
 }
 
 // NewAsyncHook creates a hook to be added to an instance of logger.
 // The hook created will be asynchronous, and it's the responsibility of the user to call the Flush method
 // before exiting to empty the log queue.
-func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *Hook {
-	hook := NewHook(db, extra)
-	hook.synchronous = false
+func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
+	hook := &AsyncHook{
+		Hook: NewHook(db, extra),
+		buf:  make(chan *logrus.Entry, BufSize),
+	}
 	go hook.fire() // Log in background
 	return hook
+}
+
+func (hook *Hook) Fire(entry *logrus.Entry) error {
+	newEntry := hook.newEntry(entry)
+	return hook.insertFunc(hook.db, newEntry)
+
 }
 
 // Fire is called when a log event is fired.
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to PostgreSQL
-func (hook *Hook) Fire(entry *logrus.Entry) error {
+func (hook *AsyncHook) Fire(entry *logrus.Entry) error {
+	hook.wg.Add(1)
+	hook.buf <- hook.newEntry(entry)
+	return nil
+}
+
+// newEntry will prepare a new logrus entry to be logged in the DB
+// the extra fields are added to entry Data, and the blacklisted ones removed
+func (hook *Hook) newEntry(entry *logrus.Entry) *logrus.Entry {
 	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
 	defer hook.mu.RUnlock()
 
@@ -84,42 +101,12 @@ func (hook *Hook) Fire(entry *logrus.Entry) error {
 		}
 	}
 
-	newEntry := &logrus.Entry{
+	return &logrus.Entry{
 		Logger:  entry.Logger,
 		Data:    data,
 		Time:    entry.Time,
 		Level:   entry.Level,
 		Message: entry.Message,
-	}
-
-	if hook.synchronous {
-		return hook.insertFunc(hook.db, newEntry)
-	}
-
-	hook.wg.Add(1)
-	hook.buf <- newEntry
-	return nil
-}
-
-// Flush waits for the log queue to be empty.
-// This func is meant to be used when the hook was created with NewAsyncHook.
-func (hook *Hook) Flush() {
-	if hook.synchronous {
-		return // nothing left to do
-	}
-
-	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
-	defer hook.mu.Unlock()
-
-	hook.wg.Wait()
-}
-
-// fire will loop on the 'buf' channel, and write entries to pg
-func (hook *Hook) fire() {
-	for {
-		entry := <-hook.buf // receive new entry on channel
-		hook.insertFunc(hook.db, entry)
-		hook.wg.Done()
 	}
 }
 
@@ -142,5 +129,23 @@ func (hook *Hook) Blacklist(b []string) {
 	defer hook.mu.Unlock()
 	for _, elem := range b {
 		hook.blacklist[elem] = true
+	}
+}
+
+// Flush waits for the log queue to be empty.
+// This func is meant to be used when the hook was created with NewAsyncHook.
+func (hook *AsyncHook) Flush() {
+	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
+	defer hook.mu.Unlock()
+
+	hook.wg.Wait()
+}
+
+// fire will loop on the 'buf' channel, and write entries to pg
+func (hook *AsyncHook) fire() {
+	for {
+		entry := <-hook.buf // receive new entry on channel
+		hook.insertFunc(hook.db, entry)
+		hook.wg.Done()
 	}
 }
