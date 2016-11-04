@@ -4,5 +4,8 @@ go:
   - tip
 services:
   - postgresql
+addons:
+  hosts:
+    - postgres
 before_script:
   - psql -U postgres < migrations/create_table_logs.sql
