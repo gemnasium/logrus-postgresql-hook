@@ -19,7 +19,7 @@ type Hook struct {
 	db         *sql.DB
 	mu         sync.RWMutex
 	blacklist  map[string]bool
-	insertFunc func(*sql.DB, *logrus.Entry) error
+	InsertFunc func(*sql.DB, *logrus.Entry) error
 }
 
 type AsyncHook struct {
@@ -28,7 +28,7 @@ type AsyncHook struct {
 	wg  sync.WaitGroup
 }
 
-var InsertFunc = func(db *sql.DB, entry *logrus.Entry) error {
+var insertFunc = func(db *sql.DB, entry *logrus.Entry) error {
 	jsonData, err := json.Marshal(entry.Data)
 	if err != nil {
 		return err

@@ -14,10 +14,6 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-type Flusher interface {
-	Flush()
-}
-
 func TestHooks(t *testing.T) {
 	db, err := sql.Open("postgres", "user=postgres dbname=postgres host=postgres sslmode=disable")
 	if err != nil {
