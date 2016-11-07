@@ -3,7 +3,10 @@ package pglogrus
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -24,8 +27,11 @@ type Hook struct {
 
 type AsyncHook struct {
 	*Hook
-	buf chan *logrus.Entry
-	wg  sync.WaitGroup
+	buf        chan *logrus.Entry
+	flush      chan bool
+	wg         sync.WaitGroup
+	TickChan   <-chan time.Time
+	InsertFunc func(*sql.Tx, *logrus.Entry) error
 }
 
 var insertFunc = func(db *sql.DB, entry *logrus.Entry) error {
@@ -35,6 +41,16 @@ var insertFunc = func(db *sql.DB, entry *logrus.Entry) error {
 	}
 
 	_, err = db.Exec("INSERT INTO logs(level, message, message_data, created_at) VALUES ($1,$2,$3,$4);", entry.Level, entry.Message, jsonData, entry.Time)
+	return err
+}
+
+var asyncInsertFunc = func(txn *sql.Tx, entry *logrus.Entry) error {
+	jsonData, err := json.Marshal(entry.Data)
+	if err != nil {
+		return err
+	}
+
+	_, err = txn.Exec("INSERT INTO logs(level, message, message_data, created_at) VALUES ($1,$2,$3,$4);", entry.Level, entry.Message, jsonData, entry.Time)
 	return err
 }
 
@@ -53,8 +69,11 @@ func NewHook(db *sql.DB, extra map[string]interface{}) *Hook {
 // before exiting to empty the log queue.
 func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 	hook := &AsyncHook{
-		Hook: NewHook(db, extra),
-		buf:  make(chan *logrus.Entry, BufSize),
+		Hook:       NewHook(db, extra),
+		buf:        make(chan *logrus.Entry, BufSize),
+		flush:      make(chan bool),
+		TickChan:   time.NewTicker(time.Second).C,
+		InsertFunc: asyncInsertFunc,
 	}
 	go hook.fire() // Log in background
 	return hook
@@ -138,14 +157,51 @@ func (hook *AsyncHook) Flush() {
 	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
 	defer hook.mu.Unlock()
 
+	hook.flush <- true
 	hook.wg.Wait()
 }
 
 // fire will loop on the 'buf' channel, and write entries to pg
 func (hook *AsyncHook) fire() {
 	for {
-		entry := <-hook.buf // receive new entry on channel
-		hook.InsertFunc(hook.db, entry)
-		hook.wg.Done()
+		var err error
+		txn, err := hook.db.Begin()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "[pglogrus] Can't create db transaction:", err)
+			// Don't create new transactions too fast, it will flood stderr
+			select {
+			case <-hook.TickChan:
+				continue
+			}
+		}
+
+		var numEntries int
+	Loop:
+		for {
+			select {
+			case entry := <-hook.buf:
+				err = hook.InsertFunc(txn, entry)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[pglogrus] Can't insert entry (%v): %v\n", entry, err)
+				}
+				numEntries++
+			case <-hook.TickChan:
+				if numEntries > 0 {
+					break Loop
+				}
+			case <-hook.flush:
+				break Loop
+			}
+
+		}
+
+		err = txn.Commit()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "[pglogrus] Can't commit transaction:", err)
+		}
+
+		for i := 0; i < numEntries; i++ {
+			hook.wg.Done()
+		}
 	}
 }

@@ -25,8 +25,8 @@ func TestHooks(t *testing.T) {
 		logrus.Hook
 		Blacklist([]string)
 	}{
-		"Hook":       NewAsyncHook(db, map[string]interface{}{}),
-		"Async Hook": NewHook(db, map[string]interface{}{}),
+		"Hook":       NewHook(db, map[string]interface{}{}),
+		"Async Hook": NewAsyncHook(db, map[string]interface{}{}),
 	}
 
 	for name, hook := range hooks {
@@ -101,7 +101,7 @@ func TestHooks(t *testing.T) {
 			)
 			rows, err := db.Query("select level, message, message_data, created_at from logs")
 			if err != nil {
-				log.Fatal(err)
+				t.Fatal(err)
 			}
 			defer rows.Close()
 			var numRows int
