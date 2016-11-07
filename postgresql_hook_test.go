@@ -38,6 +38,10 @@ func TestHooks(t *testing.T) {
 			log.Level = logrus.DebugLevel
 			log.Hooks.Add(hook)
 
+			if h, ok := hook.(*AsyncHook); ok {
+				h.TickChan = time.NewTicker(100 * time.Millisecond).C
+			}
+
 			// Purge our test DB
 			_, err = db.Exec("delete from logs;")
 			if err != nil {
