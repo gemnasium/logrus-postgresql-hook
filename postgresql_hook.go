@@ -205,3 +205,7 @@ func (hook *AsyncHook) fire() {
 		}
 	}
 }
+
+func (hook *Hook) Close() error {
+	return hook.db.Close()
+}

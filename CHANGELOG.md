@@ -1,5 +1,9 @@
 # Logrus PostgreSQL hook
 
+## 1.0.2 - unreleased
+
+* Add hook.Close() func to close the DB from the hook
+
 ## 1.0.1 - 2016-11-06
 
 * AsyncHook now batches entries into DB, using a transaction every second (if there's something to log)
