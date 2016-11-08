@@ -1,6 +1,6 @@
 # Logrus PostgreSQL hook
 
-## 1.0.2 - unreleased
+## 1.0.2 - 2016-11-08
 
 * Add hook.Close() func to close the DB from the hook
 
