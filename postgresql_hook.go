@@ -30,7 +30,7 @@ type AsyncHook struct {
 	buf        chan *logrus.Entry
 	flush      chan bool
 	wg         sync.WaitGroup
-	TickChan   <-chan time.Time
+	Ticker     *time.Ticker
 	InsertFunc func(*sql.Tx, *logrus.Entry) error
 }
 
@@ -72,7 +72,7 @@ func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 		Hook:       NewHook(db, extra),
 		buf:        make(chan *logrus.Entry, BufSize),
 		flush:      make(chan bool),
-		TickChan:   time.NewTicker(time.Second).C,
+		Ticker:     time.NewTicker(time.Second),
 		InsertFunc: asyncInsertFunc,
 	}
 	go hook.fire() // Log in background
@@ -154,11 +154,10 @@ func (hook *Hook) Blacklist(b []string) {
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncHook.
 func (hook *AsyncHook) Flush() {
-	hook.mu.Lock() // claim the mutex as a Lock - we want exclusive access to it
-	defer hook.mu.Unlock()
-
-	hook.flush <- true
+	hook.Ticker = time.NewTicker(100 * time.Millisecond)
 	hook.wg.Wait()
+	hook.flush <- true
+	<-hook.flush
 }
 
 // fire will loop on the 'buf' channel, and write entries to pg
@@ -170,7 +169,7 @@ func (hook *AsyncHook) fire() {
 			fmt.Fprintln(os.Stderr, "[pglogrus] Can't create db transaction:", err)
 			// Don't create new transactions too fast, it will flood stderr
 			select {
-			case <-hook.TickChan:
+			case <-hook.Ticker.C:
 				continue
 			}
 		}
@@ -185,12 +184,17 @@ func (hook *AsyncHook) fire() {
 					fmt.Fprintf(os.Stderr, "[pglogrus] Can't insert entry (%v): %v\n", entry, err)
 				}
 				numEntries++
-			case <-hook.TickChan:
+			case <-hook.Ticker.C:
 				if numEntries > 0 {
 					break Loop
 				}
 			case <-hook.flush:
-				break Loop
+				err = txn.Commit()
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "[pglogrus] Can't commit transaction:", err)
+				}
+				hook.flush <- true
+				return
 			}
 
 		}

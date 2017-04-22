@@ -39,7 +39,7 @@ func TestHooks(t *testing.T) {
 			log.Hooks.Add(hook)
 
 			if h, ok := hook.(*AsyncHook); ok {
-				h.TickChan = time.NewTicker(100 * time.Millisecond).C
+				h.Ticker = time.NewTicker(100 * time.Millisecond)
 			}
 
 			// Purge our test DB
