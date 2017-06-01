@@ -1,4 +1,4 @@
-# PostgreSQL Hook for [Logrus](https://github.com/Sirupsen/logrus) <img src="http://i.imgur.com/hTeVwmJ.png" width="40" height="40" alt=":walrus:" class="emoji" title=":walrus:" />&nbsp;[![Build Status](https://travis-ci.org/gemnasium/logrus-postgresql-hook.svg?branch=master)](https://travis-ci.org/gemnasium/logrus-postgresql-hook)&nbsp;[![godoc reference](https://godoc.org/github.com/gemnasium/logrus-postgresql-hook?status.svg)](https://godoc.org/github.com/gemnasium/logrus-postgresql-hook)
+# PostgreSQL Hook for [Logrus](https://github.com/sirupsen/logrus) <img src="http://i.imgur.com/hTeVwmJ.png" width="40" height="40" alt=":walrus:" class="emoji" title=":walrus:" />&nbsp;[![Build Status](https://travis-ci.org/gemnasium/logrus-postgresql-hook.svg?branch=master)](https://travis-ci.org/gemnasium/logrus-postgresql-hook)&nbsp;[![godoc reference](https://godoc.org/github.com/gemnasium/logrus-postgresql-hook?status.svg)](https://godoc.org/github.com/gemnasium/logrus-postgresql-hook)
 
 Use this hook to send your logs to [postgresql](http://postgresql.org) server.
 
@@ -13,7 +13,7 @@ The hook must be configured with:
 package main
 
 import (
-    log "github.com/Sirupsen/logrus"
+    log "github.com/sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-postgresql-hook.v1"
     )
 
@@ -39,7 +39,7 @@ Be careful to defer call `hook.Flush()` if you are using this kind of hook.
 package main
 
 import (
-    log "github.com/Sirupsen/logrus"
+    log "github.com/sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-postgresql-hook.v1"
     )
 
@@ -66,7 +66,7 @@ To change this behavior, set the `InsertFunc` of the hook:
 package main
 
 import (
-    log "github.com/Sirupsen/logrus"
+    log "github.com/sirupsen/logrus"
     "gopkg.in/gemnasium/logrus-postgresql-hook.v1"
     )
 
