@@ -1,5 +1,9 @@
 # Logrus PostgreSQL hook
 
+## 1.0.4 - 2017-06-01
+
+* Update import logrus path (see https://github.com/sirupsen/logrus/pull/384)
+
 ## 1.0.3 - 2017-04-24
 
 * Fix log flushing. The previous version was leaving a DB transaction open on exit.
