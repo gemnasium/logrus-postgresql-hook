@@ -89,6 +89,44 @@ func main() {
     }
     log.Hooks.Add(hook)
     log.Info("some logging message")
+
+}
+```
+
+### Ignore entries
+
+Entries can be completely ignored using a filter.
+A filter a `func(*logrus.Entry) *logrus.Entry` that modifies or ignore the entry provided.
+
+
+```go
+package main
+
+import (
+    log "github.com/sirupsen/logrus"
+    "gopkg.in/gemnasium/logrus-postgresql-hook.v1"
+    )
+
+func main() {
+    db, err := sql.Open("postgres", "user=postgres dbname=postgres host=postgres sslmode=disable")
+      if err != nil {
+        t.Fatal("Can't connect to postgresql database:", err)
+      }
+    defer db.Close()
+    hook := pglorus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
+    defer hook.Flush()
+
+    hook.AddFilter(func(entry *logrus.Entry) *logrus.Entry {
+      if _, ok := entry.Data["ignore"]; ok {
+        // ignore entry
+        entry = nil
+      }
+      return entry
+    })
+
+    log.Hooks.Add(hook)
+    log.Info("some logging message")
+    log.WithField("ignore", "me").Info("This message will be ignored")
 }
 ```
 

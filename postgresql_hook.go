@@ -21,8 +21,8 @@ type Hook struct {
 	Extra      map[string]interface{}
 	db         *sql.DB
 	mu         sync.RWMutex
-	blacklist  map[string]bool
 	InsertFunc func(*sql.DB, *logrus.Entry) error
+	filters    []filter
 }
 
 type AsyncHook struct {
@@ -54,13 +54,15 @@ var asyncInsertFunc = func(txn *sql.Tx, entry *logrus.Entry) error {
 	return err
 }
 
+type filter func(*logrus.Entry) *logrus.Entry
+
 // NewHook creates a PGHook to be added to an instance of logger.
 func NewHook(db *sql.DB, extra map[string]interface{}) *Hook {
 	return &Hook{
 		Extra:      extra,
 		db:         db,
 		InsertFunc: insertFunc,
-		blacklist:  make(map[string]bool),
+		filters:    []filter{},
 	}
 }
 
@@ -81,6 +83,10 @@ func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 
 func (hook *Hook) Fire(entry *logrus.Entry) error {
 	newEntry := hook.newEntry(entry)
+	if newEntry == nil {
+		// entry is ignored.
+		return nil
+	}
 	return hook.InsertFunc(hook.db, newEntry)
 
 }
@@ -89,13 +95,18 @@ func (hook *Hook) Fire(entry *logrus.Entry) error {
 // We assume the entry will be altered by another hook,
 // otherwise we might logging something wrong to PostgreSQL
 func (hook *AsyncHook) Fire(entry *logrus.Entry) error {
+	newEntry := hook.newEntry(entry)
+	if newEntry == nil {
+		// entry is ignored.
+		return nil
+	}
 	hook.wg.Add(1)
-	hook.buf <- hook.newEntry(entry)
+	hook.buf <- newEntry
 	return nil
 }
 
 // newEntry will prepare a new logrus entry to be logged in the DB
-// the extra fields are added to entry Data, and the blacklisted ones removed
+// the extra fields are added to entry Data
 func (hook *Hook) newEntry(entry *logrus.Entry) *logrus.Entry {
 	hook.mu.RLock() // Claim the mutex as a RLock - allowing multiple go routines to log simultaneously
 	defer hook.mu.RUnlock()
@@ -108,25 +119,32 @@ func (hook *Hook) newEntry(entry *logrus.Entry) *logrus.Entry {
 		data[k] = v
 	}
 	for k, v := range entry.Data {
-		if !hook.blacklist[k] {
-			data[k] = v
-			if k == logrus.ErrorKey {
-				asError, isError := v.(error)
-				_, isMarshaler := v.(json.Marshaler)
-				if isError && !isMarshaler {
-					data[k] = newMarshalableError(asError)
-				}
+		data[k] = v
+		if k == logrus.ErrorKey {
+			asError, isError := v.(error)
+			_, isMarshaler := v.(json.Marshaler)
+			if isError && !isMarshaler {
+				data[k] = newMarshalableError(asError)
 			}
 		}
 	}
 
-	return &logrus.Entry{
+	newEntry := &logrus.Entry{
 		Logger:  entry.Logger,
 		Data:    data,
 		Time:    entry.Time,
 		Level:   entry.Level,
 		Message: entry.Message,
 	}
+
+	// Apply filters
+	for _, fn := range hook.filters {
+		newEntry = fn(newEntry)
+		if newEntry == nil {
+			break
+		}
+	}
+	return newEntry
 }
 
 // Levels returns the available logging levels.
@@ -140,15 +158,11 @@ func (hook *Hook) Levels() []logrus.Level {
 	}
 }
 
-// Blacklist creates a blacklist map to filter some message keys.
+// Blacklist filters entry field values.
 // This useful when you want your application to log extra fields locally
 // but don't want pg to store them.
 func (hook *Hook) Blacklist(b []string) {
-	hook.mu.Lock()
-	defer hook.mu.Unlock()
-	for _, elem := range b {
-		hook.blacklist[elem] = true
-	}
+	hook.AddFilter(blackListFilter(b))
 }
 
 // Flush waits for the log queue to be empty.
@@ -212,4 +226,18 @@ func (hook *AsyncHook) fire() {
 
 func (hook *Hook) Close() error {
 	return hook.db.Close()
+}
+
+//AddFilter adds filter that can modify or ignore entry.
+func (hook *Hook) AddFilter(fn filter) {
+	hook.filters = append(hook.filters, fn)
+}
+
+func blackListFilter(blacklist []string) filter {
+	return func(entry *logrus.Entry) *logrus.Entry {
+		for _, name := range blacklist {
+			delete(entry.Data, name)
+		}
+		return entry
+	}
 }

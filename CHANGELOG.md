@@ -1,5 +1,10 @@
 # Logrus PostgreSQL hook
 
+## 1.1.0 - 2017-07-24
+
+* New `AddFilter` method for hooks. This method provides a better way to process the logged entry.
+* Code cleaning. Blacklist([]string) has been kept to preserve retro-compatibility, but it's now using an internal filter.
+
 ## 1.0.4 - 2017-06-01
 
 * Update import logrus path (see https://github.com/sirupsen/logrus/pull/384)

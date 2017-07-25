@@ -24,6 +24,7 @@ func TestHooks(t *testing.T) {
 	hooks := map[string]interface {
 		logrus.Hook
 		Blacklist([]string)
+		AddFilter(filter)
 	}{
 		"Hook":       NewHook(db, map[string]interface{}{}),
 		"Async Hook": NewAsyncHook(db, map[string]interface{}{}),
@@ -32,6 +33,13 @@ func TestHooks(t *testing.T) {
 	for name, hook := range hooks {
 		t.Run(name, func(t *testing.T) {
 			hook.Blacklist([]string{"filterMe"})
+			hook.AddFilter(func(entry *logrus.Entry) *logrus.Entry {
+				if _, ok := entry.Data["ignore"]; ok {
+					// ignore entry
+					entry = nil
+				}
+				return entry
+			})
 
 			log := logrus.New()
 			log.Out = ioutil.Discard
@@ -70,6 +78,12 @@ func TestHooks(t *testing.T) {
 					Logger:  log,
 					Data:    logrus.Fields{"withField": "3"},
 					Level:   logrus.DebugLevel,
+					Message: msg,
+				},
+				{
+					Logger:  log,
+					Data:    logrus.Fields{"ignore": "me"},
+					Level:   logrus.InfoLevel,
 					Message: msg,
 				},
 			}
@@ -159,7 +173,7 @@ func TestHooks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(messages) != numRows {
+			if len(messages)-1 != numRows {
 				t.Errorf("Expected %d rows, got %d\n", len(messages), numRows)
 			}
 
