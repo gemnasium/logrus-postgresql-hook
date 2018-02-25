@@ -24,7 +24,7 @@ func main() {
       }
     defer db.Close()
     hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
-    log.Hooks.Add(hook)
+    log.AddHook(hook)
     log.Info("some logging message")
 }
 ```
@@ -51,7 +51,7 @@ func main() {
     defer db.Close()
     hook := pglorus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
-    log.Hooks.Add(hook)
+    log.AddHook(hook)
     log.Info("some logging message")
 }
 ```
@@ -87,7 +87,7 @@ func main() {
       _, err = db.Exec("INSERT INTO another_logs_table(level, message, message_data, created_at) VALUES ($1,$2,$3,$4);", entry.Level, entry.Message, jsonData, entry.Time)
         return err
     }
-    log.Hooks.Add(hook)
+    log.AddHook(hook)
     log.Info("some logging message")
 
 }
