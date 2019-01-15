@@ -78,7 +78,7 @@ func main() {
     defer db.Close()
 
     hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
-    hook.InsertFunc = func(db *sqlDB, entry *logrus.Entry) error {
+    hook.InsertFunc = func(db *sql.DB, entry *logrus.Entry) error {
       jsonData, err := json.Marshal(entry.Data)
         if err != nil {
           return err
