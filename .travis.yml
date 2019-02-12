@@ -1,11 +1,14 @@
 language: go
 go:
-  - 1.7
-  - tip
+  - "1.8"
+  - "1.9"
+  - "1.10"
+  - "1.11"
+  - "tip"
 services:
   - postgresql
 addons:
-  postgresql: "9.4"
+  postgresql: "9.6"
   hosts:
     - postgres
 before_script:
