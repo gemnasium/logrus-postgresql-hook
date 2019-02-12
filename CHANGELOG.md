@@ -1,5 +1,9 @@
 # Logrus PostgreSQL hook
 
+## 1.1.1 - 2019-02-12
+
+* Fix bug where `Caller` was not passed to following hooks (#6)
+
 ## 1.1.0 - 2017-07-24
 
 * New `AddFilter` method for hooks. This method provides a better way to process the logged entry.

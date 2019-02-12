@@ -134,6 +134,7 @@ func (hook *Hook) newEntry(entry *logrus.Entry) *logrus.Entry {
 		Data:    data,
 		Time:    entry.Time,
 		Level:   entry.Level,
+		Caller:  entry.Caller,
 		Message: entry.Message,
 	}
 

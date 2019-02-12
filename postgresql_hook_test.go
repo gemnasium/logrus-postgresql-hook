@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -66,24 +67,28 @@ func TestHooks(t *testing.T) {
 					Logger:  log,
 					Data:    logrus.Fields{"withField": "1", "user": "123"},
 					Level:   logrus.ErrorLevel,
+					Caller:  &runtime.Frame{Function: "somefunc"},
 					Message: errMsg,
 				},
 				{
 					Logger:  log,
 					Data:    logrus.Fields{"withField": "2", "filterMe": "1"},
 					Level:   logrus.InfoLevel,
+					Caller:  &runtime.Frame{Function: "somefunc"},
 					Message: msg,
 				},
 				{
 					Logger:  log,
 					Data:    logrus.Fields{"withField": "3"},
 					Level:   logrus.DebugLevel,
+					Caller:  &runtime.Frame{Function: "somefunc"},
 					Message: msg,
 				},
 				{
 					Logger:  log,
 					Data:    logrus.Fields{"ignore": "me"},
 					Level:   logrus.InfoLevel,
+					Caller:  &runtime.Frame{Function: "somefunc"},
 					Message: msg,
 				},
 			}
