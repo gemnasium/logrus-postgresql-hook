@@ -74,7 +74,7 @@ func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 		Hook:       NewHook(db, extra),
 		buf:        make(chan *logrus.Entry, BufSize),
 		flush:      make(chan bool),
-		Ticker:     time.NewTicker(time.Second),
+		Ticker:     time.NewTicker(300 * time.Millisecond),
 		InsertFunc: asyncInsertFunc,
 	}
 	go hook.fire() // Log in background
@@ -169,7 +169,6 @@ func (hook *Hook) Blacklist(b []string) {
 // Flush waits for the log queue to be empty.
 // This func is meant to be used when the hook was created with NewAsyncHook.
 func (hook *AsyncHook) Flush() {
-	hook.Ticker = time.NewTicker(100 * time.Millisecond)
 	hook.wg.Wait()
 	hook.flush <- true
 	<-hook.flush
