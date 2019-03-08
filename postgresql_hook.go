@@ -30,7 +30,8 @@ type AsyncHook struct {
 	buf        chan *logrus.Entry
 	flush      chan bool
 	wg         sync.WaitGroup
-	Ticker     *time.Ticker
+	ticker     *time.Ticker
+	newTicker  chan *time.Ticker
 	InsertFunc func(*sql.Tx, *logrus.Entry) error
 }
 
@@ -74,7 +75,8 @@ func NewAsyncHook(db *sql.DB, extra map[string]interface{}) *AsyncHook {
 		Hook:       NewHook(db, extra),
 		buf:        make(chan *logrus.Entry, BufSize),
 		flush:      make(chan bool),
-		Ticker:     time.NewTicker(time.Second),
+		ticker:     time.NewTicker(time.Second),
+		newTicker:  make(chan *time.Ticker),
 		InsertFunc: asyncInsertFunc,
 	}
 	go hook.fire() // Log in background
@@ -166,16 +168,25 @@ func (hook *Hook) Blacklist(b []string) {
 	hook.AddFilter(blackListFilter(b))
 }
 
-// Flush waits for the log queue to be empty.
-// This func is meant to be used when the hook was created with NewAsyncHook.
+// Flush waits for the log queue to be empty, and then exit the logging loop.
+// This func is meant to be used when the hook was created with NewAsyncHook,
+// and should be used when exiting a program to purge the logs without
+// restarting new DB transactions.
 func (hook *AsyncHook) Flush() {
-	hook.Ticker = time.NewTicker(100 * time.Millisecond)
+	hook.newTicker <- time.NewTicker(100 * time.Millisecond)
 	hook.wg.Wait()
 	hook.flush <- true
 	<-hook.flush
 }
 
-// fire will loop on the 'buf' channel, and write entries to pg
+// LoopDuration sets the internal hook ticker.
+// Every duration d, the hook will send the queued logs to the DB.
+// The default loop duration is 1 second.
+func (hook *AsyncHook) FlushEvery(d time.Duration) {
+	hook.newTicker <- time.NewTicker(d)
+}
+
+// fire loops on the 'buf' channel, and writes entries to the DB
 func (hook *AsyncHook) fire() {
 	for {
 		var err error
@@ -184,34 +195,31 @@ func (hook *AsyncHook) fire() {
 			fmt.Fprintln(os.Stderr, "[pglogrus] Can't create db transaction:", err)
 			// Don't create new transactions too fast, it will flood stderr
 			select {
-			case <-hook.Ticker.C:
+			case <-hook.ticker.C:
 				continue
 			}
 		}
 
 		var numEntries int
+		var flush bool
 	Loop:
 		for {
 			select {
+			case t := <-hook.newTicker:
+				hook.ticker = t
 			case entry := <-hook.buf:
 				err = hook.InsertFunc(txn, entry)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "[pglogrus] Can't insert entry (%v): %v\n", entry, err)
 				}
 				numEntries++
-			case <-hook.Ticker.C:
+			case <-hook.ticker.C:
 				if numEntries > 0 {
 					break Loop
 				}
-			case <-hook.flush:
-				err = txn.Commit()
-				if err != nil {
-					fmt.Fprintln(os.Stderr, "[pglogrus] Can't commit transaction:", err)
-				}
-				hook.flush <- true
-				return
+			case flush = <-hook.flush:
+				break Loop
 			}
-
 		}
 
 		err = txn.Commit()
@@ -221,6 +229,12 @@ func (hook *AsyncHook) fire() {
 
 		for i := 0; i < numEntries; i++ {
 			hook.wg.Done()
+		}
+
+		if flush {
+			hook.flush <- true
+			// Exit the main loop to avoid creating new transactions
+			return
 		}
 	}
 }

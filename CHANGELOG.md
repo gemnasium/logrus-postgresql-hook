@@ -1,5 +1,9 @@
 # Logrus PostgreSQL hook
 
+## 1.1.2 - 2019-03-07
+
+* Fix a race condition when using hook's ticker. *Breaking change*: hook.Ticker is not exported anymore. If you need to change to loop duration, please use `LoopDuration(time.Duration)` instead now. (#9)
+
 ## 1.1.1 - 2019-02-12
 
 * Fix bug where `Caller` was not passed to following hooks (#6)

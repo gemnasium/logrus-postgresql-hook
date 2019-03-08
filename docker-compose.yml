@@ -5,7 +5,7 @@ services:
     working_dir: /go/src/github.com/gemnasium/logrus-postgresql-hook
     volumes:
       - $GOPATH:/go
-    command: sh -c 'go get -t -v ./... && go test -v ./...'
+    command: sh -c 'go get -t -v ./... && go test -race -v ./...'
     links:
       - postgres
   postgres:

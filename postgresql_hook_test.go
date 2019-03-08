@@ -48,7 +48,7 @@ func TestHooks(t *testing.T) {
 			log.Hooks.Add(hook)
 
 			if h, ok := hook.(*AsyncHook); ok {
-				h.Ticker = time.NewTicker(100 * time.Millisecond)
+				h.FlushEvery(100 * time.Millisecond)
 			}
 
 			// Purge our test DB
