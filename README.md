@@ -23,7 +23,7 @@ func main() {
         t.Fatal("Can't connect to postgresql database:", err)
       }
     defer db.Close()
-    hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
+    hook := pglogrus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
     log.AddHook(hook)
     log.Info("some logging message")
 }
@@ -49,7 +49,7 @@ func main() {
         t.Fatal("Can't connect to postgresql database:", err)
       }
     defer db.Close()
-    hook := pglorus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
+    hook := pglogrus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
     log.AddHook(hook)
     log.Info("some logging message")
@@ -77,7 +77,7 @@ func main() {
       }
     defer db.Close()
 
-    hook := pglorus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
+    hook := pglogrus.NewHook(db, map[string]interface{}{"this": "is logged every time"})
     hook.InsertFunc = func(db *sql.DB, entry *logrus.Entry) error {
       jsonData, err := json.Marshal(entry.Data)
         if err != nil {
@@ -113,7 +113,7 @@ func main() {
         t.Fatal("Can't connect to postgresql database:", err)
       }
     defer db.Close()
-    hook := pglorus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
+    hook := pglogrus.NewAsyncHook(db, map[string]interface{}{"this": "is logged every time"})
     defer hook.Flush()
 
     hook.AddFilter(func(entry *logrus.Entry) *logrus.Entry {
